@@ -6,17 +6,11 @@ namespace Generator
 {
     internal class TemplateParser
     {
-        private static Regex settingsStart = new Regex(@"\/\/\s*settings\s*start", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-        private static Regex settingsEnd = new Regex(@"\/\/\s*settings\s*end", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         public TemplateParser()
         { }
 
-        internal Settings[] Parse(string path)
+        internal Settings Parse(string path, string settings)
         {
-            var file = File.ReadAllText(path);
-            var settings = settingsStart.Split(file)[1];
-            settings = settingsEnd.Split(settings)[0];
-            settings = settings.Trim();
             var lines = settings.Split("\n");
             var inOrder = false;
             var inFolder = false;
@@ -93,15 +87,16 @@ namespace Generator
                 NamingStrategy = new CamelCaseNamingStrategy()
             };
 
-            var settingsObj = JsonConvert.DeserializeObject<Settings[]>(settingText, new JsonSerializerSettings()
+            var settingsObj = JsonConvert.DeserializeObject<Settings>(settingText, new JsonSerializerSettings()
             {
                 ContractResolver = contractResolver
             });
 
-            for (var i = 0; i < settingsObj.Length; i++)
+            var pages = settingsObj.Pages;
+            for (var i = 0; i < pages.Length; i++)
             {
-                settingsObj[i].Folder = customSettings[i].Folder;
-                settingsObj[i].Order = customSettings[i].Order;
+                pages[i].Folder = customSettings[i].Folder;
+                pages[i].Order = customSettings[i].Order;
             }
 
             return settingsObj;

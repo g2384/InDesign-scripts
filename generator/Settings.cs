@@ -2,6 +2,11 @@
 {
     public class Settings
     {
+        public Page[] Pages { get; set; }
+        public IDictionary<string, string> Functions { get; set; }
+    }
+    public class Page
+    {
         public string Title { get; set; }
         public string Folder { get; set; }
         public string[] File { get; set; }
