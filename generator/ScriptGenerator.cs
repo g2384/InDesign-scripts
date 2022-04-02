@@ -72,7 +72,9 @@ namespace Generator
                                                 }
                                                 else
                                                 {
-                                                    removeBeforeCompare[r] = new Regex(r);
+                                                    var nr = new Regex(r);
+                                                    removeBeforeCompare[r] = nr;
+                                                    regex.Add(nr);
                                                 }
                                             }
                                         }
@@ -120,6 +122,7 @@ namespace Generator
 
         private static string[] FindBestMatched(string[] allFiles, string expectedString, string rootFolder, IReadOnlyCollection<Regex> removeBeforeCompare = null)
         {
+            var dict = new Dictionary<int, string[]>();
             var scores = allFiles.Select(e =>
             {
                 var f = e.Replace(rootFolder, "");
@@ -130,11 +133,51 @@ namespace Generator
                         f = regex.Replace(f, "");
                     }
                 }
+                var per = new string[0];
+                if (dict.ContainsKey(f.Length))
+                {
+                    per = dict[f.Length];
+                }
+                else
+                {
+                    if (Math.Abs(expectedString.Length - f.Length) > 7 && Math.Max(expectedString.Length, f.Length) > 20)
+                    {
+                        Log.Warning($"Two strings are too large to compare exactly: {expectedString} (len={expectedString.Length})");
+                        Log.Warning($"    {f}(len={f.Length})");
+                    }
+                    else
+                    {
+                        if (expectedString.Length > f.Length)
+                        {
+                            var ncr = StringHelper.EstimateComb(expectedString.Length, f.Length);
+                            if (ncr < 5000)
+                            {
+                                per = StringHelper.GetCombinations(expectedString.ToCharArray(), f.Length).ToArray();
+                            }
+                            else
+                            {
+                                Log.Warning($"Two strings are too large to compare exactly: {expectedString} (len={expectedString.Length})");
+                                Log.Warning($"    {f}(len={f.Length})");
+                                Log.Warning($"    possoible combinations: {ncr}");
+                            }
+                        }
+                    }
+                    dict[f.Length] = per;
+                }
+                if (!per.Any())
+                {
+                    per = new[] { expectedString };
+                }
+                var score = per.Min(e => StringHelper.Compare(e, f));
+                if (expectedString.ToCharArray().Count(e => f.Contains(e)) == 0)
+                {
+                    score += 100; // penalty if no common char
+                }
                 return new
                 {
                     Path = e,
                     ProcessedString = f,
-                    Score = StringHelper.Compare(f, expectedString)
+                    Score = score
                 };
             }).ToArray();
             var min = scores.Min(e => e.Score);
