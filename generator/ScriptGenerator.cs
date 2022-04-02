@@ -23,35 +23,35 @@ namespace Generator
                 }
                 var files = FileHelper.GetAllFiles(page.Folder, "*.*").ToArray();
                 files = files.Where(e => !e.Contains("~$")).ToArray();
-                js.Add("activePage = $insertPage$;");
+                AddPageToJs(js);
 
                 AddTitleToJs(functions, js, page.Title);
 
                 if (page.File != null)
                 {
                     var matched = GetMatched(files, page.File, page.Folder);
-                    AddFileToJs(functions["$insertFile$"], js, matched);
+                    AddFileToJs(functions, js, matched);
                     if (page.LoopBy == "order")
                     {
                         var isFirst = true;
                         foreach (var order in page.Order)
                         {
+                            var addedFileShortNames = new List<string>();
                             foreach (var nextPage in page.NextPages)
                             {
                                 if (!isFirst && nextPage.Once)
                                 {
                                     continue;
                                 }
+                                AddPageToJs(js);
                                 if (nextPage.Once)
                                 {
-                                    js.Add("activePage = $insertPage$;");
                                     AddTitleToJs(functions, js, nextPage.Title);
                                     var matched2 = GetMatched(files, nextPage.File, page.Folder);
-                                    AddFileToJs(functions["$insertFile$"], js, matched2);
+                                    AddFileToJs(functions, js, matched2);
                                 }
                                 else
                                 {
-                                    js.Add("activePage = $insertPage$;");
                                     if (nextPage.TitleFormat == "useOrder")
                                     {
                                         nextPage.Title = order;
@@ -77,8 +77,21 @@ namespace Generator
                                             }
                                         }
                                     }
-                                    var filtered = FindBestMatched(matched2, order, page.Folder, regex);
-                                    AddFileToJs(functions["$insertFile$"], js, filtered);
+
+                                    if (!string.IsNullOrEmpty(nextPage.FileHint))
+                                    {
+                                        var regex2 = new Regex(nextPage.FileHint);
+                                        var matched3 = addedFileShortNames.Select(e => regex2.Match(e).Groups[1].Value).Distinct().ToArray();
+                                        matched2 = GetMatched(matched2, matched3, page.Folder);
+                                    }
+
+                                    if (matched2.Any())
+                                    {
+                                        var filtered = FindBestMatched(matched2, order, page.Folder, regex);
+                                        AddFileToJs(functions, js, filtered);
+                                        var shortNames = filtered.Select(e => e.Replace(page.Folder, ""));
+                                        addedFileShortNames.AddRange(shortNames);
+                                    }
                                 }
                             }
                             isFirst = false;
@@ -99,12 +112,18 @@ namespace Generator
             File.WriteAllText(newPath, newText);
         }
 
+        private static void AddPageToJs(List<string> js)
+        {
+            js.Add("activePage = $insertPage$;");
+            js.Add("$incrementAfterInsertPage$;");
+        }
+
         private static string[] FindBestMatched(string[] allFiles, string expectedString, string rootFolder, IReadOnlyCollection<Regex> removeBeforeCompare = null)
         {
             var scores = allFiles.Select(e =>
             {
                 var f = e.Replace(rootFolder, "");
-                if(removeBeforeCompare != null)
+                if (removeBeforeCompare != null)
                 {
                     foreach (var regex in removeBeforeCompare)
                     {
@@ -132,16 +151,25 @@ namespace Generator
             }
         }
 
-        private static void AddFileToJs(string function,
+        private static void AddFileToJs(Dictionary<string, string> functions,
             List<string> js,
             string[] matched)
         {
-            for (var i = 0; i < matched.Length; i++)
+            if (functions.ContainsKey("$insertFiles$"))
             {
-                var func = function
-                    .Replace("$file$", matched[i].ToLiteral())
-                    .Replace("$index$", i.ToString());
+                var func = functions["$insertFiles$"]
+                        .Replace("$files$", matched.ToLiteral());
                 js.Add(func + ";");
+            }
+            else
+            {
+                for (var i = 0; i < matched.Length; i++)
+                {
+                    var func = functions["$insertFile$"]
+                        .Replace("$file$", matched[i].ToLiteral())
+                        .Replace("$index$", i.ToString());
+                    js.Add(func + ";");
+                }
             }
         }
 

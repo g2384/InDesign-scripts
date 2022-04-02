@@ -7,5 +7,6 @@
         public bool Once { get; set; }
         public string TitleFormat { get; set; }
         public string[] RemoveBeforeCompare { get; set; }
+        public string FileHint { get; set; }
     }
 }
