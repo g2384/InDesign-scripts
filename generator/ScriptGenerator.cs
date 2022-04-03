@@ -25,6 +25,7 @@ namespace Generator
                 var files = FileHelper.GetAllFiles(page.Folder, "*.*").ToArray();
                 files = files.Where(e => !e.Contains("~$")).ToArray();
 
+                var updatedPageFolder = "";
                 var wordOrder = page.OrderFromDoc;
                 if (wordOrder != null)
                 {
@@ -37,6 +38,7 @@ namespace Generator
                     {
                         Log.Warning($"Found multiple \"{wordOrder.File}\"");
                     }
+                    updatedPageFolder = Path.GetDirectoryName(matched[0]);
                     var htmlFile = WordHelper.ConvertWordToHtml(matched[0]);
                     var html = new HtmlAgilityPack.HtmlDocument();
                     html.Load(htmlFile, Encoding.UTF8);
@@ -71,66 +73,7 @@ namespace Generator
                         var isFirst = true;
                         foreach (var order in page.Order)
                         {
-                            var addedFileShortNames = new List<string>();
-                            foreach (var nextPage in page.NextPages)
-                            {
-                                if (!isFirst && nextPage.Once)
-                                {
-                                    continue;
-                                }
-                                AddPageToJs(js);
-                                if (nextPage.Once)
-                                {
-                                    AddTitleToJs(functions, js, nextPage.Title);
-                                    var matched2 = GetMatched(files, nextPage.File, page.Folder);
-                                    AddFilesToJs(functions, js, matched2);
-                                }
-                                else
-                                {
-                                    if (nextPage.TitleFormat == "useOrder")
-                                    {
-                                        nextPage.Title = order;
-                                    }
-                                    AddTitleToJs(functions, js, nextPage.Title);
-                                    var matched2 = GetMatched(files, nextPage.File, page.Folder);
-                                    var regex = new List<Regex>();
-                                    var rbc = nextPage.RemoveBeforeCompare;
-                                    if (rbc != null)
-                                    {
-                                        foreach (var r in rbc)
-                                        {
-                                            if (!string.IsNullOrEmpty(r))
-                                            {
-                                                if (removeBeforeCompare.ContainsKey(r))
-                                                {
-                                                    regex.Add(removeBeforeCompare[r]);
-                                                }
-                                                else
-                                                {
-                                                    var nr = new Regex(r);
-                                                    removeBeforeCompare[r] = nr;
-                                                    regex.Add(nr);
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    if (!string.IsNullOrEmpty(nextPage.FileHint))
-                                    {
-                                        var regex2 = new Regex(nextPage.FileHint);
-                                        var matched3 = addedFileShortNames.Select(e => regex2.Match(e).Groups[1].Value).Distinct().ToArray();
-                                        matched2 = GetMatched(matched2, matched3, page.Folder);
-                                    }
-
-                                    if (matched2.Any())
-                                    {
-                                        var filtered = FindBestMatched(matched2, order, page.Folder, regex);
-                                        AddFilesToJs(functions, js, filtered);
-                                        var shortNames = filtered.Select(e => e.Replace(page.Folder, ""));
-                                        addedFileShortNames.AddRange(shortNames);
-                                    }
-                                }
-                            }
+                            AddNextPages(page, updatedPageFolder, isFirst, js, functions, files, order);
                             isFirst = false;
                         }
                     }
@@ -147,6 +90,86 @@ namespace Generator
             var text = string.Join("\n", js);
             var newText = originalText.Replace("$SCRIPTS$", text);
             File.WriteAllText(newPath, newText);
+        }
+
+        private void AddNextPages(Page page, string updatedPageFolder, bool isFirst, List<string> js, Dictionary<string, string> functions, string[] files, string order)
+        {
+            var addedFileShortNames = new List<string>();
+            foreach (var nextPage in page.NextPages)
+            {
+                var localPageFolder = page.Folder;
+                if (!string.IsNullOrEmpty(nextPage.Folder))
+                {
+                    if (nextPage.Folder == "sameFolder")
+                    {
+                        localPageFolder = updatedPageFolder;
+                    }
+                    else
+                    {
+                        localPageFolder = nextPage.Folder;
+                    }
+                }
+                if (!localPageFolder.EndsWith("\\"))
+                {
+                    localPageFolder = localPageFolder + "\\";
+                }
+                if (!isFirst && nextPage.Once)
+                {
+                    continue;
+                }
+                AddPageToJs(js);
+                if (nextPage.Once)
+                {
+                    AddTitleToJs(functions, js, nextPage.Title);
+                    var matched2 = GetMatched(files, nextPage.File, localPageFolder);
+                    AddFilesToJs(functions, js, matched2);
+                }
+                else
+                {
+                    if (nextPage.TitleFormat == "useOrder")
+                    {
+                        nextPage.Title = order;
+                    }
+                    AddTitleToJs(functions, js, nextPage.Title);
+                    var matched2 = GetMatched(files, nextPage.File, localPageFolder);
+                    var regex = new List<Regex>();
+                    var rbc = nextPage.RemoveBeforeCompare;
+                    if (rbc != null)
+                    {
+                        foreach (var r in rbc)
+                        {
+                            if (!string.IsNullOrEmpty(r))
+                            {
+                                if (removeBeforeCompare.ContainsKey(r))
+                                {
+                                    regex.Add(removeBeforeCompare[r]);
+                                }
+                                else
+                                {
+                                    var nr = new Regex(r);
+                                    removeBeforeCompare[r] = nr;
+                                    regex.Add(nr);
+                                }
+                            }
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(nextPage.FileHint))
+                    {
+                        var regex2 = new Regex(nextPage.FileHint);
+                        var matched3 = addedFileShortNames.Select(e => regex2.Match(e).Groups[1].Value).Distinct().ToArray();
+                        matched2 = GetMatched(matched2, matched3, localPageFolder);
+                    }
+
+                    if (matched2.Any())
+                    {
+                        var filtered = FindBestMatched(matched2, order, localPageFolder, regex);
+                        AddFilesToJs(functions, js, filtered);
+                        var shortNames = filtered.Select(e => e.Replace(localPageFolder, ""));
+                        addedFileShortNames.AddRange(shortNames);
+                    }
+                }
+            }
         }
 
         private static void AddFilesAllPagesToJs(Dictionary<string, string> functions, List<string> js, string[] matched)
@@ -281,7 +304,7 @@ namespace Generator
             }
         }
 
-        private string[] GetMatched(string[] files, string[] keywords, string rootPath)
+        private static string[] GetMatched(string[] files, string[] keywords, string rootPath)
         {
             var matched = new List<string>();
             foreach (var f in files)
