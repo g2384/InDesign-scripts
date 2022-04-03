@@ -10,5 +10,6 @@
         public string[] Order { get; set; }
         public bool UseOrder { get; set; }
         public NextPage[] NextPages { get; set; }
+        public WordOrder OrderFromDoc { get; set; }
     }
 }

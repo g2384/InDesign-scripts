@@ -1,4 +1,5 @@
 ﻿using Serilog;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Generator
@@ -23,6 +24,33 @@ namespace Generator
                 }
                 var files = FileHelper.GetAllFiles(page.Folder, "*.*").ToArray();
                 files = files.Where(e => !e.Contains("~$")).ToArray();
+
+                var wordOrder = page.OrderFromDoc;
+                if (wordOrder != null)
+                {
+                    if(page.Order != null)
+                    {
+                        Log.Warning("\"Order\" is defined more than once. Order will be read from doc again.");
+                    }
+                    var matched = GetMatched(files, wordOrder.File, page.Folder);
+                    if(matched.Length > 1)
+                    {
+                        Log.Warning($"Found multiple \"{wordOrder.File}\"");
+                    }
+                    var htmlFile = WordHelper.ConvertWordToHtml(matched[0]);
+                    var html = new HtmlAgilityPack.HtmlDocument();
+                    html.Load(htmlFile, Encoding.UTF8);
+                    var node = html.DocumentNode.SelectNodes(wordOrder.XPath);
+                    var strs = node.Select(e => e.InnerText.Trim()).ToArray();
+                    if (wordOrder.IgnoredOrders?.Any() == true)
+                    {
+                        strs = strs.Except(wordOrder.IgnoredOrders, StringComparer.InvariantCultureIgnoreCase).ToArray();
+                    }
+                    Log.Information("Found orders in \"{wordOrder.FileName}\":" + Environment.NewLine + string.Join(Environment.NewLine, strs));
+                    page.Order = strs;
+                }
+
+
                 AddPageToJs(js);
 
                 AddTitleToJs(functions, js, page.Title);

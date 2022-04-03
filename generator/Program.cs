@@ -5,6 +5,11 @@ namespace Generator
 {
     public static class Program
     {
+        public static string GetRootDirectory()
+        {
+            return AppContext.BaseDirectory;
+        }
+
         public static void Main(params string[] paths)
         {
             Log.Logger = new LoggerConfiguration()
