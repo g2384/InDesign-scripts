@@ -29,54 +29,36 @@ namespace Generator
                 var wordOrder = page.OrderFromDoc;
                 if (wordOrder != null)
                 {
-                    if(page.Order?.Any() == true)
+                    if (page.Order?.Any() == true)
                     {
                         Log.Warning("\"Order\" is defined more than once. Order will be read from doc again.");
                     }
                     var matched = GetMatched(files, wordOrder.File, page.Folder);
-                    if(matched.Length > 1)
+                    foreach (var m in matched)
                     {
-                        Log.Warning($"Found multiple \"{wordOrder.File}\"");
-                    }
-                    updatedPageFolder = Path.GetDirectoryName(matched[0]);
-                    var htmlFile = WordHelper.ConvertWordToHtml(matched[0]);
-                    var html = new HtmlAgilityPack.HtmlDocument();
-                    html.Load(htmlFile, Encoding.UTF8);
-                    var node = html.DocumentNode.SelectNodes(wordOrder.XPath);
-                    var strs = node.Select(e => e.InnerText.Trim()).ToArray();
-                    if (wordOrder.IgnoredOrders?.Any() == true)
-                    {
-                        strs = strs.Except(wordOrder.IgnoredOrders, StringComparer.InvariantCultureIgnoreCase).ToArray();
-                    }
-                    Log.Information("Found orders in \"{wordOrder.FileName}\":" + Environment.NewLine + string.Join(Environment.NewLine, strs));
-                    page.Order = strs;
-                }
-
-
-                AddPageToJs(js);
-
-                AddTitleToJs(functions, js, page.Title);
-
-                if (page.File != null)
-                {
-                    var matched = GetMatched(files, page.File, page.Folder);
-                    if (page.PageRange == "all")
-                    {
-                        AddFilesAllPagesToJs(functions, js, matched);
-                    }
-                    else
-                    {
-                        AddFilesToJs(functions, js, matched);
-                    }
-                    if (page.LoopBy == "order")
-                    {
-                        var isFirst = true;
-                        foreach (var order in page.Order)
+                        if (matched.Length > 1)
                         {
-                            AddNextPages(page, updatedPageFolder, isFirst, js, functions, files, order);
-                            isFirst = false;
+                            Log.Warning($"Found multiple \"{wordOrder.File}\"");
                         }
+                        updatedPageFolder = Path.GetDirectoryName(m);
+                        var htmlFile = WordHelper.ConvertWordToHtml(m);
+                        var html = new HtmlAgilityPack.HtmlDocument();
+                        html.Load(htmlFile, Encoding.UTF8);
+                        var node = html.DocumentNode.SelectNodes(wordOrder.XPath);
+                        var strs = node.Select(e => e.InnerText.Trim()).ToArray();
+                        if (wordOrder.IgnoredOrders?.Any() == true)
+                        {
+                            strs = strs.Except(wordOrder.IgnoredOrders, StringComparer.InvariantCultureIgnoreCase).ToArray();
+                        }
+                        Log.Information($"Found orders in \"{wordOrder.File}\":" + Environment.NewLine + string.Join(Environment.NewLine, strs));
+                        page.Order = strs;
+
+                        AddPages(functions, js, page, files, updatedPageFolder);
                     }
+                }
+                else
+                {
+                    AddPages(functions, js, page, files, updatedPageFolder);
                 }
 
             }
@@ -90,6 +72,35 @@ namespace Generator
             var text = string.Join("\n", js);
             var newText = originalText.Replace("$SCRIPTS$", text);
             File.WriteAllText(newPath, newText);
+        }
+
+        private void AddPages(Dictionary<string, string> functions, List<string> js, Page page, string[] files, string? updatedPageFolder)
+        {
+            AddPageToJs(js);
+
+            AddTitleToJs(functions, js, page.Title);
+
+            if (page.File != null)
+            {
+                var matched = GetMatched(files, page.File, page.Folder);
+                if (page.PageRange == "all")
+                {
+                    AddFilesAllPagesToJs(functions, js, matched);
+                }
+                else
+                {
+                    AddFilesToJs(functions, js, matched);
+                }
+                if (page.LoopBy == "order")
+                {
+                    var isFirst = true;
+                    foreach (var order in page.Order)
+                    {
+                        AddNextPages(page, updatedPageFolder, isFirst, js, functions, files, order);
+                        isFirst = false;
+                    }
+                }
+            }
         }
 
         private void AddNextPages(Page page, string updatedPageFolder, bool isFirst, List<string> js, Dictionary<string, string> functions, string[] files, string order)
