@@ -28,7 +28,7 @@ namespace Generator
                 var wordOrder = page.OrderFromDoc;
                 if (wordOrder != null)
                 {
-                    if(page.Order != null)
+                    if(page.Order?.Any() == true)
                     {
                         Log.Warning("\"Order\" is defined more than once. Order will be read from doc again.");
                     }
@@ -58,7 +58,14 @@ namespace Generator
                 if (page.File != null)
                 {
                     var matched = GetMatched(files, page.File, page.Folder);
-                    AddFileToJs(functions, js, matched);
+                    if (page.PageRange == "all")
+                    {
+                        AddFilesAllPagesToJs(functions, js, matched);
+                    }
+                    else
+                    {
+                        AddFilesToJs(functions, js, matched);
+                    }
                     if (page.LoopBy == "order")
                     {
                         var isFirst = true;
@@ -76,7 +83,7 @@ namespace Generator
                                 {
                                     AddTitleToJs(functions, js, nextPage.Title);
                                     var matched2 = GetMatched(files, nextPage.File, page.Folder);
-                                    AddFileToJs(functions, js, matched2);
+                                    AddFilesToJs(functions, js, matched2);
                                 }
                                 else
                                 {
@@ -118,7 +125,7 @@ namespace Generator
                                     if (matched2.Any())
                                     {
                                         var filtered = FindBestMatched(matched2, order, page.Folder, regex);
-                                        AddFileToJs(functions, js, filtered);
+                                        AddFilesToJs(functions, js, filtered);
                                         var shortNames = filtered.Select(e => e.Replace(page.Folder, ""));
                                         addedFileShortNames.AddRange(shortNames);
                                     }
@@ -140,6 +147,36 @@ namespace Generator
             var text = string.Join("\n", js);
             var newText = originalText.Replace("$SCRIPTS$", text);
             File.WriteAllText(newPath, newText);
+        }
+
+        private static void AddFilesAllPagesToJs(Dictionary<string, string> functions, List<string> js, string[] matched)
+        {
+            foreach (var m in matched)
+            {
+                var fi2 = new FileInfo(m);
+                if (fi2.Extension.Equals(".pdf", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    AddPdfAllPagesToJs(functions, js, m);
+                }
+                else
+                {
+                    Log.Error($"Doesn't support ${fi2.Extension}");
+                }
+            }
+        }
+
+        private static void AddPdfAllPagesToJs(Dictionary<string, string> functions, List<string> js, string m)
+        {
+            if (functions.ContainsKey("$insertPdfAllPages$"))
+            {
+                var func = functions["$insertPdfAllPages$"]
+                        .Replace("$file$", m.ToLiteral());
+                js.Add(func + ";");
+            }
+            else
+            {
+                Log.Error("Cann't find function insertPdfAllPages()");
+            }
         }
 
         private static void AddPageToJs(List<string> js)
@@ -222,7 +259,7 @@ namespace Generator
             }
         }
 
-        private static void AddFileToJs(Dictionary<string, string> functions,
+        private static void AddFilesToJs(Dictionary<string, string> functions,
             List<string> js,
             string[] matched)
         {
