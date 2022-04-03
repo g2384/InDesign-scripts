@@ -25,7 +25,7 @@ namespace Generator
                 var files = FileHelper.GetAllFiles(page.Folder, "*.*").ToArray();
                 files = files.Where(e => !e.Contains("~$")).ToArray();
 
-                var updatedPageFolder = "";
+                var updatedPageFolder = page.Folder;
                 var wordOrder = page.OrderFromDoc;
                 if (wordOrder != null)
                 {
@@ -297,6 +297,10 @@ namespace Generator
             List<string> js,
             string[] matched)
         {
+            if (matched.Any() == false)
+            {
+                return;
+            }
             if (functions.ContainsKey("$insertFiles$"))
             {
                 var func = functions["$insertFiles$"]
