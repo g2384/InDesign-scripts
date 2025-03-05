@@ -1,6 +1,6 @@
 //An InDesign JavaScript
 /*  
-@@@BUILDINFO@@@ "FitToWidth.jsx" 1.0.0 30 March 2022
+@@@BUILDINFO@@@ "moveToTopLeft.jsx" 1.0.0 30 March 2022
 */
 
 main();
@@ -22,7 +22,7 @@ function main() {
                 }
             }
             if (objects.length != 0) {
-                fitToWidth(objects);
+                moveToTopLeft(objects);
             } else {
                 alert("Please select a rectangle, oval, polygon, text frame, or graphic line and try again.");
             }
@@ -34,12 +34,20 @@ function main() {
     }
 }
 
-function fitToWidth(objs) {
+function moveToTopLeft(objs) {
     for (var i = 0; i < objs.length; i++) {
         var o = objs[i];
         var page = o.parentPage;
-        var leftMargin = page.marginPreferences.left;
-        var topMargin = page.marginPreferences.top;
+        var margins = page.marginPreferences;
+        var leftMargin = margins.left;
+        
+        // Get the first horizontal grid line
+        var firstGridLine = getFirstHorizontalGuide(page);
+        if (firstGridLine !== null) {
+            var topMargin = firstGridLine;
+        } else {
+            var topMargin = margins.top; // Fallback to default top margin if no grid found
+        }
 
         var currY = o.geometricBounds[0]; //top
         var currY2 = o.geometricBounds[2]; //bottom
@@ -47,4 +55,18 @@ function fitToWidth(objs) {
         var currHeight = currY2 - currY;
         o.geometricBounds = [topMargin, leftMargin, currHeight + topMargin, currWidth + leftMargin];
     }
+}
+
+// Function to get the first horizontal guide line from the page
+function getFirstHorizontalGuide(page) {
+    var guides = page.guides;
+    
+    // Find the first horizontal guide
+    for (var i = 0; i < guides.length; i++) {
+        if (guides[i].orientation === HorizontalOrVertical.HORIZONTAL) {
+            return guides[i].location; // Return the position of the first horizontal guide
+        }
+    }
+
+    return null; // Return null if no horizontal guides are found
 }
